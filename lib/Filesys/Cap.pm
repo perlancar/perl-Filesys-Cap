@@ -17,6 +17,7 @@ our @EXPORT_OK = qw(
                        fs_has_attr_x
                        fs_is_ci
                        fs_is_cs
+                       fs_can_symlink
                );
 
 sub _uniq_name {
@@ -80,16 +81,30 @@ sub fs_is_cs {
     _check_fs_case_sensitivity(0, @_);
 }
 
+sub fs_can_symlink {
+    my $dir = shift // tempdir(CLEANUP => 1);
+
+    return undef unless eval { symlink("", ""); 1 };
+
+    my $name = _uniq_name();
+    symlink "$dir/$name.2", "$dir/$name" or return undef;
+
+    unlink "$dir/$name";
+
+    return 1;
+}
+
 1;
 # ABSTRACT: Test filesystem capabilities/characteristics
 
 =head1 SYNOPSIS
 
- use Filesys::Cap qw(fs_has_attr_x fs_is_ci fs_is_cs);
+ use Filesys::Cap qw(fs_has_attr_x fs_is_ci fs_is_cs fs_can_symlink);
 
  say "Filesystem has x attribute"     if fs_has_attr_x();
  say "Filesystem is case-insensitive" if fs_is_ci("/tmp");
  say "Filesystem is case-sensitive"   if fs_is_cs("/tmp");
+ say "Filesystem can do symlinks"     if fs_can_symlink("/tmp");
 
 
 =head1 FUNCTIONS
@@ -98,28 +113,40 @@ sub fs_is_cs {
 
 Return true if filesystem has x attribute, meaning it can have files that pass
 C<-x> Perl file test operator as well as files that fail it. This is done by
-creating two temporary files under C<$dir>, one chmod-ed to 0644 and one to 0755
-and test the two files.
+actually creating two temporary files under C<$dir>, one chmod-ed to 0644 and
+one to 0755 and test the two files.
 
 If C<$dir> is not specified, will use a temporary directory created by
 C<tempdir()>.
 
-Will return undef on failure.
+Will return undef on failure (e.g.: permission denied, etc).
 
 =head2 fs_is_ci([ $dir ]) => bool
 
 Return true if filesystem is case-insensitive, meaning it is impossible to
 create two files with the same name but differing case (e.g. "foo" and "Foo").
-This is done by creating two temporary files under C<$dir>.
+This is done by actually creating two temporary files under C<$dir>.
 
 If C<$dir> is not specified, will use a temporary directory created by
 C<tempdir()>.
 
-Will return undef on failure.
+Will return undef on failure (e.g.: permission denied, etc).
 
 =head2 fs_is_cs([ $dir ]) => bool
 
 The opposite of C<fs_is_ci>, will return true if filesystem is case-sensitive.
+
+=head2 fs_can_symlink([ $dir ]) => bool
+
+Return true if filesystem can do symlinks. This is tested by creating an actual
+temporary symlink. Note that this check is performed first:
+
+ return undef unless eval { symlink("",""); 1 };
+
+If C<$dir> is not specified, will use a temporary directory created by
+C<tempdir()>.
+
+Will return undef on failure (e.g.: permission denied, etc).
 
 
 =head1 SEE ALSO
